@@ -75,6 +75,9 @@ uint16_t g_recvLen = 0;                     // 接收到的数据长度
 /* 在文件开头添加测试相关变量 */
 static uint32_t g_testTxCount = 0;    // 发送计数
 
+/* 在文件开头的全局变量区域添加 */
+uint32_t g_lastRecvTime = 0;    // 最后一次接收时间
+
 /**
   * @brief  计算CRC16校验值
   * @param  _pBuf: 数据缓冲区
@@ -196,20 +199,30 @@ void RS485_EchoTest(uint8_t *data, uint16_t len)
 }
 
 /**
-  * @brief  处理接收到的新数据
-  * @param  _byte: 接收到的数据字节
+  * @brief  RS485接收数据处理
+  * @param  buf: 接收到的数据缓冲区
+  * @param  len: 接收到的数据长度
   * @retval None
   */
-void RS485_ReciveNew(uint8_t _byte)
+void RS485_ReciveNew(uint8_t *buf, uint16_t len)
 {
     /* 保存接收到的数据 */
-    if(g_RS485_RxCount < RS485_RX_BUF_SIZE)
+    if(len <= RS485_RX_BUF_SIZE)
     {
-        /* 保存数据到接收缓冲区 */
-        g_RS485_RxBuf[g_RS485_RxCount++] = _byte;
+        /* 复制数据到RS485接收缓冲区 */
+        memcpy(g_RS485_RxBuf, buf, len);
+        g_RS485_RxCount = len;
         
-        /* 重新启动接收超时计时 */
-        g_lastRecvTime = HAL_GetTick();
+        /* 标记帧接收完成 */
+        g_RS485_Frame_Flag = 1;
+        
+        /* 打印接收到的数据 */
+        printf("\r\n[RS485] Received %d bytes:\r\n", len);
+        for(uint16_t i = 0; i < len; i++)
+        {
+            printf("0x%02X ", buf[i]);
+        }
+        printf("\r\n");
     }
 }
 

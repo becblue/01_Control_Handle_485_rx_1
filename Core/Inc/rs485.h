@@ -11,7 +11,7 @@
 /* RS485方向控制函数 */
 void RS485_Init(void);              // RS485初始化
 void RS485_SendBuf(uint8_t *_ucaBuf, uint16_t _usLen);  // 发送数据
-void RS485_ReciveNew(uint8_t _byte);  // 接收数据处理
+void RS485_ReciveNew(uint8_t *buf, uint16_t len);  // 修改函数声明，增加参数
 
 /* 外部变量声明 */
 extern uint8_t g_RS485_RxBuf[RS485_RX_BUF_SIZE];  // 接收缓冲区
@@ -19,6 +19,9 @@ extern uint16_t g_RS485_RxCount;                   // 接收计数器
 extern uint8_t g_RS485_Frame_Flag;                 // 帧接收完成标志
 extern uint8_t g_lastRecvData[RS485_RX_BUF_SIZE]; // 最后一次接收的数据
 extern uint16_t g_recvLen;                         // 接收到的数据长度
+extern uint8_t rx_buffer[256];  // 声明外部变量
+extern uint16_t rx_count;       // 声明外部变量
+extern uint32_t g_lastRecvTime;  // 声明最后接收时间变量
 
 /* CRC校验相关函数声明 */
 uint16_t CRC16_Modbus(uint8_t *_pBuf, uint16_t _usLen);  // CRC16校验计算

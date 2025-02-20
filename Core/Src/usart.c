@@ -23,7 +23,9 @@
 #include <stdio.h>    // 添加这行，用于FILE类型定义
 
 /* USER CODE BEGIN 0 */
-uint8_t rxByte;  // 改为全局变量，去掉static
+uint8_t rxByte;  // 接收缓冲区
+uint8_t rx_buffer[256];  // 接收数据缓冲区
+uint16_t rx_count = 0;   // 接收计数器
 
 /**
   * @brief  串口接收中断回调函数
@@ -34,9 +36,16 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
     if(huart->Instance == USART3)  // RS485使用的是UART3
     {
-        RS485_ReciveNew(rxByte);   // 处理接收到的数据
+        /* 将接收到的数据保存到缓冲区 */
+        rx_buffer[rx_count++] = rxByte;
         
-        /* 立即重新使能接收中断 */
+        /* 防止缓冲区溢出 */
+        if(rx_count >= sizeof(rx_buffer))
+        {
+            rx_count = 0;
+        }
+        
+        /* 重新开启接收 */
         HAL_UART_Receive_IT(&huart3, &rxByte, 1);
     }
 }

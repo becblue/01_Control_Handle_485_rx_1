@@ -250,23 +250,22 @@ void USART1_IRQHandler(void)
 void USART3_IRQHandler(void)
 {
     /* USER CODE BEGIN USART3_IRQn 0 */
+    
     /* 判断是否是空闲中断 */
     if(__HAL_UART_GET_FLAG(&huart3, UART_FLAG_IDLE) != RESET)
     {
         /* 清除空闲中断标志 */
         __HAL_UART_CLEAR_IDLEFLAG(&huart3);
         
-        /* 标记帧接收完成 */
-        g_RS485_Frame_Flag = 1;
-        
-        /* 保存接收到的数据长度 */
-        g_recvLen = g_RS485_RxCount;
-        
-        /* 复制接收到的数据到显示缓冲区 */
-        memcpy(g_lastRecvData, g_RS485_RxBuf, g_RS485_RxCount);
-        
-        /* 清零接收计数器,准备下一次接收 */
-        g_RS485_RxCount = 0;
+        /* 如果接收到了数据 */
+        if(rx_count > 0)
+        {
+            /* 处理接收到的数据 */
+            RS485_ReciveNew(rx_buffer, rx_count);
+            
+            /* 清零接收计数器,准备下一次接收 */
+            rx_count = 0;
+        }
     }
     /* USER CODE END USART3_IRQn 0 */
     HAL_UART_IRQHandler(&huart3);

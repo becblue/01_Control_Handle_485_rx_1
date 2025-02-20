@@ -63,6 +63,10 @@ void USART3_IRQHandler(void);
 
 /* USER CODE END EFP */
 
+/* 外部变量声明 */
+extern uint8_t rx_buffer[256];  // 接收缓冲区
+extern uint16_t rx_count;       // 接收计数器
+
 #ifdef __cplusplus
 }
 #endif
