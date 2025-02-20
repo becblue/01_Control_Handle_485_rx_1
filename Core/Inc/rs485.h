@@ -3,6 +3,8 @@
 
 #include "main.h"
 #include "usart.h"
+#include "led.h"
+#include "key.h"
 
 /* RS485接收缓冲区定义 */
 #define RS485_RX_BUF_SIZE   256     // 接收缓冲区大小
@@ -64,6 +66,11 @@ void RS485_DisplayStatus(void);             // 显示通信状态
 
 /* RS485显示相关函数 */
 void RS485_DisplayData(void);              // 显示接收到的数据
+
+/* 外部函数声明 */
+extern void LED_SetState(uint8_t led_id, uint8_t state);
+extern uint8_t LED_GetState(uint8_t led_id);
+extern uint8_t KEY_GetState(uint8_t key_id);
 
 #endif /* __RS485_H */
 

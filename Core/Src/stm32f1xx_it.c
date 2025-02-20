@@ -20,9 +20,9 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "stm32f1xx_it.h"
+#include "rs485.h"    // 添加RS485相关声明
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "rs485.h"    // 添加RS485相关声明
 #include <string.h>   // 添加memcpy函数声明
 /* USER CODE END Includes */
 

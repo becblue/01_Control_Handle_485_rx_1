@@ -30,4 +30,6 @@ ex07_control_handle_modbus_b\stm32f1xx_it.o: ../Drivers/STM32F1xx_HAL_Driver/Inc
 ex07_control_handle_modbus_b\stm32f1xx_it.o: ../Core/Inc/stm32f1xx_it.h
 ex07_control_handle_modbus_b\stm32f1xx_it.o: ../Core/Inc/rs485.h
 ex07_control_handle_modbus_b\stm32f1xx_it.o: ../Core/Inc/usart.h
+ex07_control_handle_modbus_b\stm32f1xx_it.o: ../Core/Inc/led.h
+ex07_control_handle_modbus_b\stm32f1xx_it.o: ../Core/Inc/key.h
 ex07_control_handle_modbus_b\stm32f1xx_it.o: D:\Program Files\Keil_v5\ARM\ARMCC\Bin\..\include\string.h
