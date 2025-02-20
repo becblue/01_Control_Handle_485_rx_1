@@ -388,10 +388,12 @@ BÕ¾Í¨¹ýRS485½ÓÊÕAÕ¾·¢ËÍµÄKEY1¡¢KEY2¡¢KEY3°´¼ü×´Ì¬±£´æÖÁ¼Ä´æÆ÷£¬Í¬Ê±½âÎö¼Ä´æÆ÷Êý¾
   - [x] Òý½ÅÅäÖÃ£ºTX-PB10, RX-PB11, RS485_EN-PB8
   - [x] Í¨ÐÅ²ÎÊý£º115200-8-1-N
   - [x] ÖÐ¶Ï½ÓÊÕÅäÖÃ
+  - [x] ·¢ËÍ¹¦ÄÜÊµÏÖ
+  - [x] »Ø»·²âÊÔÍê³É
 
 - [x] GPIOÅäÖÃ
   - [x] LEDÊä³öÅäÖÃ
-  - [x] °´¼üÊäÈëÅäÖÃ£¨°üÀ¨KEY2µÄPC13ÌØÊâ´¦Àí£©
+  - [x] °´¼üÊäÈëÅäÖÃ
   - [x] ×´Ì¬Ö¸Ê¾ÅäÖÃ
 
 ### 7.2 Èí¼þÄ£¿é¿ª·¢
@@ -428,7 +430,7 @@ BÕ¾Í¨¹ýRS485½ÓÊÕAÕ¾·¢ËÍµÄKEY1¡¢KEY2¡¢KEY3°´¼ü×´Ì¬±£´æÖÁ¼Ä´æÆ÷£¬Í¬Ê±½âÎö¼Ä´æÆ÷Êý¾
 
 - [ ] µ÷ÊÔÓëÓÅ»¯
   - [x] OLEDÏÔÊ¾²âÊÔ
-  - [ ] RS485Í¨ÐÅ²âÊÔ
+  - [x] RS485Í¨ÐÅ²âÊÔ
   - [ ] ModbusÐ­Òé²âÊÔ
   - [ ] °´¼ü¹¦ÄÜ²âÊÔ
   - [ ] LED¿ØÖÆ²âÊÔ

@@ -111,11 +111,11 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    KEY_Handler();    // 处理按键
+    /* 处理按键 */
+    KEY_Handler();
     
-    /* 更新OLED显示 */
-    OLED_ShowString(0, 0, "RS485 Test Mode");  // 显示标题
-    RS485_DisplayData();                       // 显示接收到的数据
+    /* 处理RS485/Modbus通信 */
+    RS485_Handler();
     
     /* USER CODE END WHILE */
     /* USER CODE BEGIN 3 */

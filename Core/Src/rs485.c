@@ -63,20 +63,21 @@ static uint8_t ucCoilBuf[COIL_NCOILS/8 + 1];           // 线圈缓冲区
 static uint8_t ucDiscreteBuf[DISCRETE_NCOILS/8 + 1];    // 离散输入缓冲区
 
 /* 在文件开头添加测试相关变量 */
-static uint32_t g_testRxCount = 0;    // 测试接收计数
+static uint32_t g_lastRecvTime = 0;    // 最后一次接收时间
 
-/* 定义接收缓冲区和相关变量 */
-uint8_t g_RS485_RxBuf[RS485_RX_BUF_SIZE];  // 接收缓冲区
-uint16_t g_RS485_RxCount = 0;               // 接收计数器
-uint8_t g_RS485_Frame_Flag = 0;             // 帧接收完成标志
-uint8_t g_lastRecvData[RS485_RX_BUF_SIZE] = {0}; // 最后一次接收的数据
-uint16_t g_recvLen = 0;                     // 接收到的数据长度
+/* 添加发送相关变量 */
+static uint8_t g_tx_buffer[RS485_TX_BUF_SIZE];  // 发送缓冲区
+static uint16_t g_tx_len = 0;                   // 发送长度
+static uint8_t g_tx_busy = 0;                   // 发送忙标志
 
-/* 在文件开头添加测试相关变量 */
-static uint32_t g_testTxCount = 0;    // 发送计数
-
-/* 在文件开头的全局变量区域添加 */
-uint32_t g_lastRecvTime = 0;    // 最后一次接收时间
+/* 在文件开头添加寄存器映射定义 */
+/* Modbus寄存器地址定义 */
+#define REG_KEY1_STATE        0    // KEY1状态寄存器地址
+#define REG_KEY2_STATE        1    // KEY2状态寄存器地址
+#define REG_LED1_CONTROL      2    // LED1控制寄存器地址
+#define REG_LED2_CONTROL      3    // LED2控制寄存器地址
+#define REG_LED3_CONTROL      4    // LED3控制寄存器地址
+#define REG_SYSTEM_STATUS     5    // 系统状态寄存器地址
 
 /**
   * @brief  计算CRC16校验值
@@ -115,7 +116,7 @@ uint8_t RS485_VerifyCRC(uint8_t *_pBuf, uint16_t _usLen)
     }
     
     crc1 = CRC16_Modbus(_pBuf, _usLen - 2);
-    crc2 = ((uint16_t)_pBuf[_usLen - 2] << 8) | _pBuf[_usLen - 1];
+    crc2 = ((uint16_t)_pBuf[_usLen - 2] << 8) | _pBuf[_usLen - 1]);
     
     return (crc1 == crc2) ? 1 : 0;
 }
@@ -147,7 +148,26 @@ void RS485_Init(void)
   */
 void RS485_SendBuf(uint8_t *_ucaBuf, uint16_t _usLen)
 {
-    /* 设置为发送模式，提前2个比特时间 */
+    /* 检查参数 */
+    if(_ucaBuf == NULL || _usLen == 0 || _usLen > RS485_TX_BUF_SIZE)
+    {
+        return;
+    }
+    
+    /* 等待上一次发送完成 */
+    while(g_tx_busy)
+    {
+        HAL_Delay(1);
+    }
+    
+    /* 复制数据到发送缓冲区 */
+    memcpy(g_tx_buffer, _ucaBuf, _usLen);
+    g_tx_len = _usLen;
+    
+    /* 设置发送标志 */
+    g_tx_busy = 1;
+    
+    /* 设置为发送模式 */
     HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_SET);
     
     /* 延时约35us (4个比特时间) */
@@ -156,73 +176,35 @@ void RS485_SendBuf(uint8_t *_ucaBuf, uint16_t _usLen)
         __NOP();
     }
     
-    /* 发送数据 */
-    HAL_UART_Transmit(&huart3, _ucaBuf, _usLen, 0xFFFF);
-    
-    /* 等待发送完成 */
-    while(__HAL_UART_GET_FLAG(&huart3, UART_FLAG_TC) == RESET)
-    {
-    }
-    
-    /* 延时约17.4us (2个比特时间) */
-    for(uint8_t i = 0; i < 17; i++)
-    {
-        __NOP();
-    }
-    
-    /* 发送完成后设置为接收模式 */
-    HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_RESET);
+    /* 启动发送 */
+    HAL_UART_Transmit_IT(&huart3, g_tx_buffer, g_tx_len);
 }
 
 /**
-  * @brief  RS485回环测试
-  * @param  data: 接收到的数据
-  * @param  len: 数据长度
+  * @brief  串口发送完成回调函数
+  * @param  huart: 串口句柄
   * @retval None
   */
-void RS485_EchoTest(uint8_t *data, uint16_t len)
+void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
-    char buf[32];
-    
-    /* 接收计数增加 */
-    g_testRxCount++;
-    
-    /* 显示接收计数和最后一个字节 */
-    sprintf(buf, "RX:%04lu", g_testRxCount);
-    OLED_ShowString(0, 0, buf);
-    
-    sprintf(buf, "LAST:0x%02X", data[len-1]);
-    OLED_ShowString(0, 2, buf);
-    
-    /* 回发数据 */
-    RS485_SendBuf(data, len);
-}
-
-/**
-  * @brief  RS485接收数据处理
-  * @param  buf: 接收到的数据缓冲区
-  * @param  len: 接收到的数据长度
-  * @retval None
-  */
-void RS485_ReciveNew(uint8_t *buf, uint16_t len)
-{
-    /* 保存接收到的数据 */
-    if(len <= RS485_RX_BUF_SIZE)
+    if(huart->Instance == USART3)
     {
-        /* 复制数据到RS485接收缓冲区 */
-        memcpy(g_RS485_RxBuf, buf, len);
-        g_RS485_RxCount = len;
-        
-        /* 标记帧接收完成 */
-        g_RS485_Frame_Flag = 1;
-        
-        /* 打印接收到的数据 */
-        printf("\r\n[RS485] Received %d bytes:\r\n", len);
-        for(uint16_t i = 0; i < len; i++)
+        /* 等待发送完成 */
+        while(__HAL_UART_GET_FLAG(&huart3, UART_FLAG_TC) == RESET)
         {
-            printf("0x%02X ", buf[i]);
         }
-        printf("\r\n");
+        
+        /* 延时约17.4us (2个比特时间) */
+        for(uint8_t i = 0; i < 17; i++)
+        {
+            __NOP();
+        }
+        
+        /* 切换为接收模式 */
+        HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_RESET);
+        
+        /* 清除发送忙标志 */
+        g_tx_busy = 0;
     }
 }
 
@@ -257,55 +239,69 @@ void RS485_RxCheck(void)
 }
 
 /**
-  * @brief  显示接收到的数据
+  * @brief  修改寄存器处理函数
+  * @param  None
+  * @retval None
+  */
+void UpdateModbusRegisters(void)
+{
+    /* 更新按键状态到输入寄存器 */
+    usRegInputBuf[REG_KEY1_STATE] = KEY_GetState(KEY1);
+    usRegInputBuf[REG_KEY2_STATE] = KEY_GetState(KEY2);
+    
+    /* 更新系统状态 */
+    usRegInputBuf[REG_SYSTEM_STATUS] = 0x0001;  // 系统运行正常
+}
+
+void ProcessModbusRegisters(void)
+{
+    /* 处理LED控制寄存器 */
+    LED_SetState(LED_R, (usRegHoldingBuf[REG_LED1_CONTROL] != 0) ? LED_ON : LED_OFF);
+    LED_SetState(LED_G, (usRegHoldingBuf[REG_LED2_CONTROL] != 0) ? LED_ON : LED_OFF);
+    LED_SetState(LED_B, (usRegHoldingBuf[REG_LED3_CONTROL] != 0) ? LED_ON : LED_OFF);
+}
+
+/**
+  * @brief  修改OLED显示函数
   * @param  None
   * @retval None
   */
 void RS485_DisplayData(void)
 {
     char buf[32];
-    uint8_t i;
-    uint8_t line = 2;  // 从OLED第2行开始显示
     
-    /* 显示接收到的数据 */
-    if(g_recvLen > 0)
+    /* 清除显示区域 */
+    OLED_ShowString(0, 2, "                    ");
+    OLED_ShowString(0, 3, "                    ");
+    OLED_ShowString(0, 4, "                    ");
+    OLED_ShowString(0, 5, "                    ");
+    
+    /* 显示按键状态 */
+    sprintf(buf, "KEY: %d %d", 
+            usRegInputBuf[REG_KEY1_STATE],
+            usRegInputBuf[REG_KEY2_STATE]);
+    OLED_ShowString(0, 2, buf);
+    
+    /* 显示LED状态 */
+    sprintf(buf, "LED: %d %d %d",
+            usRegHoldingBuf[REG_LED1_CONTROL],
+            usRegHoldingBuf[REG_LED2_CONTROL],
+            usRegHoldingBuf[REG_LED3_CONTROL]);
+    OLED_ShowString(0, 3, buf);
+    
+    /* 显示通信状态 */
+    if(g_RS485_Frame_Flag)
     {
-        /* 每行显示4个字节，可以显示多行 */
-        for(i = 0; i < g_recvLen; i += 4)
-        {
-            if(i == 0)
-            {
-                sprintf(buf, "RX:");  // 第一行显示RX标识
-            }
-            else
-            {
-                sprintf(buf, "   ");  // 后续行空3格对齐
-            }
-            
-            /* 处理剩余字节数 */
-            switch(g_recvLen - i)
-            {
-                case 1:
-                    sprintf(buf + 3, "%02X", g_lastRecvData[i]);
-                    break;
-                case 2:
-                    sprintf(buf + 3, "%02X-%02X", g_lastRecvData[i], g_lastRecvData[i+1]);
-                    break;
-                case 3:
-                    sprintf(buf + 3, "%02X-%02X-%02X", g_lastRecvData[i], g_lastRecvData[i+1], g_lastRecvData[i+2]);
-                    break;
-                default:
-                    sprintf(buf + 3, "%02X-%02X-%02X-%02X", g_lastRecvData[i], g_lastRecvData[i+1], 
-                            g_lastRecvData[i+2], g_lastRecvData[i+3]);
-                    break;
-            }
-            
-            OLED_ShowString(0, line, buf);
-            line += 2;  // 每组数据间隔一行显示
-            
-            if(line >= 8)  // OLED只有8行，超出时停止显示
-                break;
-        }
+        sprintf(buf, "RX:%d bytes", g_RS485_RxCount);
+        OLED_ShowString(0, 4, buf);
+        
+        /* 显示最后4个字节的数据 */
+        sprintf(buf, "D:%02X %02X %02X %02X",
+                g_RS485_RxBuf[g_RS485_RxCount-4],
+                g_RS485_RxBuf[g_RS485_RxCount-3],
+                g_RS485_RxBuf[g_RS485_RxCount-2],
+                g_RS485_RxBuf[g_RS485_RxCount-1]);
+        OLED_ShowString(0, 5, buf);
     }
 }
 
@@ -316,6 +312,7 @@ void RS485_DisplayData(void)
   */
 void RS485_Handler(void)
 {
+    /* 处理接收到的Modbus帧 */
     if(g_RS485_Frame_Flag)  // 接收到一帧数据
     {
         if(RS485_VerifyCRC(g_RS485_RxBuf, g_RS485_RxCount))
@@ -328,6 +325,15 @@ void RS485_Handler(void)
         g_RS485_Frame_Flag = 0;
         g_RS485_RxCount = 0;
     }
+
+    /* 更新Modbus寄存器 */
+    UpdateModbusRegisters();
+    
+    /* 处理Modbus寄存器值 */
+    ProcessModbusRegisters();
+    
+    /* 更新显示 */
+    RS485_DisplayData();
 }
 
 /**
@@ -700,49 +706,5 @@ void RS485_ProcessData(uint8_t *_pBuf, uint16_t _usLen)
             RS485_SendBuf(_pBuf, 5);
             break;
     }
-}
-
-/**
-  * @brief  发送测试数据
-  * @param  None
-  * @retval None
-  */
-void RS485_SendTestData(void)
-{
-    uint8_t testData[8] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};  // 测试数据包
-    char buf[32];
-    uint16_t i;
-    
-    /* 发送计数递增 */
-    g_testTxCount++;
-    
-    /* 发送测试数据 */
-    RS485_SendBuf(testData, sizeof(testData));
-    
-    /* 通过调试串口(USART1)打印发送的数据内容 */
-    printf("\r\nTX Data[%d]: ", sizeof(testData));
-    for(i = 0; i < sizeof(testData); i++)
-    {
-        printf("0x%02X ", testData[i]);
-    }
-    printf("\r\n");
-    
-    /* 显示发送计数 */
-    sprintf(buf, "TX:%04lu", g_testTxCount);
-    OLED_ShowString(0, 0, buf);
-}
-
-/**
-  * @brief  显示RS485通信状态
-  * @param  None
-  * @retval None
-  */
-void RS485_DisplayStatus(void)
-{
-    char buf[32];
-    
-    /* 显示发送计数 */
-    sprintf(buf, "TX:%04lu", g_testTxCount);
-    OLED_ShowString(0, 0, buf);
 }
 
