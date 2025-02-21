@@ -110,30 +110,98 @@ uint8_t g_RS485_Frame_Flag = 0;             // 帧接收完成标志
 uint8_t g_lastRecvData[RS485_RX_BUF_SIZE] = {0}; // 最后一次接收的数据
 uint16_t g_recvLen = 0;                     // 接收到的数据长度
 
-/* 添加RS485_ReciveNew函数的实现 */
-void RS485_ReciveNew(uint8_t *buf, uint16_t len)
+/* 在文件开头添加静态函数声明 */
+static void MB_ReadCoils(uint8_t *_pFrame, uint16_t _ucLen);
+static void MB_ReadDiscreteInputs(uint8_t *_pFrame, uint16_t _ucLen);
+static void MB_ReadRegister(uint8_t *_pFrame, uint16_t _ucLen);
+static void MB_ReadInputRegister(uint8_t *_pFrame, uint16_t _ucLen);
+static void MB_WriteSingleCoil(uint8_t *_pFrame, uint16_t _ucLen);
+static void MB_WriteRegister(uint8_t *_pFrame, uint16_t _ucLen);
+static void MB_WriteMultipleRegisters(uint8_t *_pFrame, uint16_t _ucLen);
+static void MB_WriteMultipleCoils(uint8_t *_pFrame, uint16_t _ucLen);
+
+/* 在文件开头添加Modbus错误码定义 */
+#define MODBUS_ERR_NONE      0x00    // 无错误
+#define MODBUS_ERR_FUNC      0x01    // 功能码错误
+#define MODBUS_ERR_ADDR      0x02    // 地址错误
+#define MODBUS_ERR_DATA      0x03    // 数据值错误
+#define MODBUS_ERR_SLAVE     0x04    // 从机设备故障
+#define MODBUS_ERR_ACK       0x05    // 确认
+#define MODBUS_ERR_BUSY      0x06    // 从机忙
+#define MODBUS_ERR_NACK      0x07    // 否认
+#define MODBUS_ERR_MEM       0x08    // 内存奇偶校验错误
+
+/* Modbus功能码定义 */
+#define MODBUS_FUNC_READ_COILS         0x01    // 读线圈
+#define MODBUS_FUNC_READ_DISCRETE      0x02    // 读离散输入
+#define MODBUS_FUNC_READ_HOLDING       0x03    // 读保持寄存器
+#define MODBUS_FUNC_READ_INPUT         0x04    // 读输入寄存器
+#define MODBUS_FUNC_WRITE_COIL         0x05    // 写单个线圈
+#define MODBUS_FUNC_WRITE_HOLDING      0x06    // 写单个寄存器
+#define MODBUS_FUNC_WRITE_COILS        0x0F    // 写多个线圈
+#define MODBUS_FUNC_WRITE_HOLDINGS     0x10    // 写多个寄存器
+
+/**
+  * @brief  RS485接收数据处理函数
+  * @param  _pFrame: 数据缓冲区
+  * @param  _ucLen: 数据长度
+  * @retval None
+  */
+void RS485_ReciveNew(uint8_t *_pFrame, uint16_t _ucLen)
 {
-    /* 保存接收到的数据 */
-    if(len <= RS485_RX_BUF_SIZE)
+    /* 优化1: 快速CRC校验 */
+    if(_ucLen <= RS485_RX_BUF_SIZE && RS485_VerifyCRC(_pFrame, _ucLen))
     {
-        /* 复制数据到RS485接收缓冲区 */
-        memcpy(g_RS485_RxBuf, buf, len);
-        g_RS485_RxCount = len;
+        /* 优化2: 直接处理数据，减少内存拷贝 */
+        uint8_t funcCode = _pFrame[RS485_FUNC_OFFSET];
         
-        /* 保存最后一次接收的数据 */
-        memcpy(g_lastRecvData, buf, len);
-        g_recvLen = len;
-        
-        /* 标记帧接收完成 */
-        g_RS485_Frame_Flag = 1;
-        
-        /* 打印接收到的数据到调试串口 */
-        printf("\r\n[RS485] Received %d bytes:\r\n", len);
-        for(uint16_t i = 0; i < len; i++)
+        /* 处理不同的功能码 */
+        switch(funcCode)
         {
-            printf("0x%02X ", buf[i]);
+            case 0x01:  // 读线圈
+                MB_ReadCoils(_pFrame, _ucLen);
+                break;
+            
+            case 0x02:  // 读离散输入
+                MB_ReadDiscreteInputs(_pFrame, _ucLen);
+                break;
+            
+            case 0x03:  // 读保持寄存器
+                MB_ReadRegister(_pFrame, _ucLen);
+                break;
+            
+            case 0x04:  // 读输入寄存器
+                MB_ReadInputRegister(_pFrame, _ucLen);
+                break;
+            
+            case 0x05:  // 写单个线圈
+                MB_WriteSingleCoil(_pFrame, _ucLen);
+                break;
+            
+            case 0x06:  // 写单个寄存器
+                MB_WriteRegister(_pFrame, _ucLen);
+                break;
+            
+            case 0x0F:  // 写多个线圈
+                printf("[Modbus] Write Multiple Coils\r\n");
+                MB_WriteMultipleCoils(_pFrame, _ucLen);
+                break;
+            
+            case 0x10:  // 写多个寄存器
+                MB_WriteMultipleRegisters(_pFrame, _ucLen);
+                break;
+            
+            default:
+                printf("[Modbus] Error: Unsupported Function Code 0x%02X\r\n", funcCode);
+                /* 返回错误响应 */
+                _pFrame[RS485_FUNC_OFFSET] |= 0x80;
+                _pFrame[RS485_DATA_OFFSET] = MODBUS_ERR_FUNC;
+                uint16_t usCRC = CRC16_Modbus(_pFrame, 3);
+                _pFrame[3] = (uint8_t)(usCRC >> 8);
+                _pFrame[4] = (uint8_t)(usCRC & 0xFF);
+                RS485_SendBuf(_pFrame, 5);
+                break;
         }
-        printf("\r\n");
     }
 }
 
@@ -228,21 +296,15 @@ void RS485_SendBuf(uint8_t *_ucaBuf, uint16_t _usLen)
         __NOP();
     }
     
-    /* 设置发送标志 */
+    /* 设置发送忙标志 */
     g_tx_busy = 1;
     
-    /* 切换为发送模式 */
+    /* 最小化方向切换延时 */
+    __NOP();
     HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_SET);
+    __NOP();
     
-    /* 打印发送的数据 */
-    printf("\r\n[Modbus] Response(%d bytes): ", _usLen);
-    for(uint16_t i = 0; i < _usLen; i++)
-    {
-        printf("%02X ", _ucaBuf[i]);
-    }
-    printf("\r\n");
-    
-    /* 启动发送 */
+    /* 使用中断方式发送数据 */
     HAL_UART_Transmit_IT(&huart3, _ucaBuf, _usLen);
 }
 
@@ -260,14 +322,20 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
         {
         }
         
-        /* 延时约17.4us (2个比特时间) */
-        for(uint8_t i = 0; i < 17; i++)
+        /* 发送完成后的延时，确保最后一个字节完全发送出去 */
+        for(uint8_t i = 0; i < 25; i++)  // 增加延时
         {
             __NOP();
         }
         
         /* 切换为接收模式 */
         HAL_GPIO_WritePin(RS485_EN_GPIO_Port, RS485_EN_Pin, GPIO_PIN_RESET);
+        
+        /* 切换后的延时，确保方向切换完成 */
+        for(uint8_t i = 0; i < 20; i++)  // 增加延时
+        {
+            __NOP();
+        }
         
         /* 清除发送忙标志 */
         g_tx_busy = 0;
@@ -351,41 +419,6 @@ void ProcessModbusRegisters(void)
 }
 
 /**
-  * @brief  修改OLED显示函数
-  * @param  None
-  * @retval None
-  */
-void RS485_DisplayData(void)
-{
-    char buf[32];
-    
-    /* 显示通信状态 */
-    sprintf(buf, "COM:%s", g_tx_busy ? "BUSY" : "IDLE");
-    OLED_ShowString(0, 0, buf);
-    
-    /* 显示最后接收的功能码 */
-    if(g_RS485_Frame_Flag && g_RS485_RxCount > 1)
-    {
-        sprintf(buf, "FC:0x%02X", g_RS485_RxBuf[1]);
-        OLED_ShowString(64, 0, buf);
-    }
-    
-    /* 显示寄存器状态 */
-    sprintf(buf, "REG:%04X %04X", 
-            usRegHoldingBuf[0], usRegInputBuf[0]);
-    OLED_ShowString(0, 1, buf);
-    
-    /* 显示LED和按键状态 */
-    sprintf(buf, "L:%d%d%d K:%d%d",
-            LED_GetState(LED_R),
-            LED_GetState(LED_G),
-            LED_GetState(LED_B),
-            KEY_GetState(KEY1),
-            KEY_GetState(KEY2));
-    OLED_ShowString(0, 2, buf);
-}
-
-/**
   * @brief  RS485处理接收到的帧数据
   * @param  None
   * @retval None
@@ -418,9 +451,6 @@ void RS485_Handler(void)
     
     /* 处理Modbus寄存器值 */
     ProcessModbusRegisters();
-    
-    /* 更新显示 */
-    RS485_DisplayData();
 }
 
 /**
@@ -552,42 +582,54 @@ static void MB_ReadCoils(uint8_t *_pFrame, uint16_t _usLen)
   * @param  _ucLen: 帧长度
   * @retval None
   */
-static void MB_WriteCoil(uint8_t *_pFrame, uint16_t _ucLen)
+static void MB_WriteSingleCoil(uint8_t *_pFrame, uint16_t _ucLen)
 {
     uint16_t usAddr;
     uint16_t usValue;
-    uint8_t ucByteOffset;
-    uint8_t ucBitOffset;
     
+    /* 解析地址和值 */
     usAddr = (_pFrame[RS485_DATA_OFFSET] << 8) | _pFrame[RS485_DATA_OFFSET + 1];
     usValue = (_pFrame[RS485_DATA_OFFSET + 2] << 8) | _pFrame[RS485_DATA_OFFSET + 3];
     
-    /* 添加调试信息 */
-    printf("[Modbus] Write Coil: Addr=0x%04X, Value=0x%04X\n", usAddr, usValue);
-    
     /* 检查地址是否有效 */
-    if(usAddr <= COIL_END)
+    if(usAddr < COIL_NCOILS)
     {
-        ucByteOffset = (usAddr - COIL_START) / 8;
-        ucBitOffset = (usAddr - COIL_START) % 8;
-        
-        /* 写入线圈状态 */
-        if(usValue == 0xFF00)  // 置位
+        /* 检查值是否有效 (0x0000 或 0xFF00) */
+        if(usValue == 0x0000 || usValue == 0xFF00)
         {
-            ucCoilBuf[ucByteOffset] |= (1 << ucBitOffset);
-            printf("[Modbus] Set coil %d ON\n", usAddr);
+            /* 设置线圈状态 */
+            if(usValue == 0xFF00)
+            {
+                ucCoilBuf[usAddr/8] |= (1 << (usAddr % 8));  // 设置为1
+            }
+            else
+            {
+                ucCoilBuf[usAddr/8] &= ~(1 << (usAddr % 8)); // 设置为0
+            }
+            
+            /* 发送响应（回显接收到的帧） */
+            RS485_SendBuf(_pFrame, _ucLen);
         }
-        else  // 复位
+        else
         {
-            ucCoilBuf[ucByteOffset] &= ~(1 << ucBitOffset);
-            printf("[Modbus] Set coil %d OFF\n", usAddr);
+            /* 返回错误响应 */
+            _pFrame[RS485_FUNC_OFFSET] |= 0x80;
+            _pFrame[RS485_DATA_OFFSET] = MODBUS_ERR_DATA;
+            uint16_t usCRC = CRC16_Modbus(_pFrame, 3);
+            _pFrame[3] = (uint8_t)(usCRC >> 8);
+            _pFrame[4] = (uint8_t)(usCRC & 0xFF);
+            RS485_SendBuf(_pFrame, 5);
         }
-        
-        /* 立即更新LED状态 */
-        ProcessModbusRegisters();
-        
-        /* 发送响应（回显接收到的帧） */
-        RS485_SendBuf(_pFrame, _ucLen);
+    }
+    else
+    {
+        /* 返回错误响应 */
+        _pFrame[RS485_FUNC_OFFSET] |= 0x80;
+        _pFrame[RS485_DATA_OFFSET] = MODBUS_ERR_ADDR;
+        uint16_t usCRC = CRC16_Modbus(_pFrame, 3);
+        _pFrame[3] = (uint8_t)(usCRC >> 8);
+        _pFrame[4] = (uint8_t)(usCRC & 0xFF);
+        RS485_SendBuf(_pFrame, 5);
     }
 }
 
@@ -751,64 +793,50 @@ static void MB_ReadDiscreteInputs(uint8_t *_pFrame, uint16_t _ucLen)
   */
 static void MB_WriteMultipleCoils(uint8_t *_pFrame, uint16_t _ucLen)
 {
-    uint16_t usAddr;      // 起始地址
-    uint16_t usNCoils;    // 线圈数量
-    uint8_t ucByteCount;  // 字节数
-    uint16_t usCRC;
-    uint8_t ucBitOffset;
-    uint8_t ucByteOffset;
-    uint8_t *pData;
+    uint16_t usAddr;
+    uint16_t usNCoils;
+    uint8_t ucByteCount;
+    uint8_t ucBitValue;
     
-    /* 解析数据 */
+    /* 解析地址和数量 */
     usAddr = (_pFrame[RS485_DATA_OFFSET] << 8) | _pFrame[RS485_DATA_OFFSET + 1];
     usNCoils = (_pFrame[RS485_DATA_OFFSET + 2] << 8) | _pFrame[RS485_DATA_OFFSET + 3];
     ucByteCount = _pFrame[RS485_DATA_OFFSET + 4];
-    pData = &_pFrame[RS485_DATA_OFFSET + 5];
     
     /* 检查地址和数量是否有效 */
-    if((usAddr <= COIL_END) && 
-       (usAddr + usNCoils <= COIL_END + 1) &&
+    if((usAddr < COIL_NCOILS) && 
+       (usAddr + usNCoils <= COIL_NCOILS) && 
        (ucByteCount == (usNCoils + 7) / 8))
     {
         /* 更新线圈状态 */
         for(uint16_t i = 0; i < usNCoils; i++)
         {
-            ucByteOffset = (usAddr - COIL_START + i) / 8;
-            ucBitOffset = (usAddr - COIL_START + i) % 8;
-            
-            if(pData[i/8] & (1 << (i%8)))
+            ucBitValue = (_pFrame[RS485_DATA_OFFSET + 5 + i/8] >> (i % 8)) & 0x01;
+            if(ucBitValue)
             {
-                ucCoilBuf[ucByteOffset] |= (1 << ucBitOffset);
-                /* 如果是LED控制线圈，直接控制LED */
-                if(usAddr + i < 3)  // LED0-LED2
-                {
-                    LED_SetState(usAddr + i, LED_ON);
-                }
+                ucCoilBuf[usAddr/8 + i/8] |= (1 << (i % 8));
             }
             else
             {
-                ucCoilBuf[ucByteOffset] &= ~(1 << ucBitOffset);
-                /* 如果是LED控制线圈，直接控制LED */
-                if(usAddr + i < 3)  // LED0-LED2
-                {
-                    LED_SetState(usAddr + i, LED_OFF);
-                }
+                ucCoilBuf[usAddr/8 + i/8] &= ~(1 << (i % 8));
             }
         }
         
-        /* 准备响应数据 */
-        _pFrame[RS485_DATA_OFFSET] = (uint8_t)(usAddr >> 8);
-        _pFrame[RS485_DATA_OFFSET + 1] = (uint8_t)(usAddr & 0xFF);
-        _pFrame[RS485_DATA_OFFSET + 2] = (uint8_t)(usNCoils >> 8);
-        _pFrame[RS485_DATA_OFFSET + 3] = (uint8_t)(usNCoils & 0xFF);
-        
-        /* 计算并添加CRC */
-        usCRC = CRC16_Modbus(_pFrame, 6);
+        /* 发送正常响应 */
+        uint16_t usCRC = CRC16_Modbus(_pFrame, 6);
         _pFrame[6] = (uint8_t)(usCRC >> 8);
         _pFrame[7] = (uint8_t)(usCRC & 0xFF);
-        
-        /* 发送响应 */
         RS485_SendBuf(_pFrame, 8);
+    }
+    else
+    {
+        /* 返回错误响应 */
+        _pFrame[RS485_FUNC_OFFSET] |= 0x80;
+        _pFrame[RS485_DATA_OFFSET] = MODBUS_ERR_DATA;
+        uint16_t usCRC = CRC16_Modbus(_pFrame, 3);
+        _pFrame[3] = (uint8_t)(usCRC >> 8);
+        _pFrame[4] = (uint8_t)(usCRC & 0xFF);
+        RS485_SendBuf(_pFrame, 5);
     }
 }
 
@@ -835,44 +863,44 @@ void RS485_ProcessData(uint8_t *_pBuf, uint16_t _usLen)
     /* 处理功能码 */
     switch(ucFuncCode)
     {
-        case MODBUS_FUNC_READ_COILS:          // 0x01
+        case 0x01:  // 读线圈
             printf("[Modbus] Read Coils\r\n");
             MB_ReadCoils(_pBuf, _usLen);
             break;
             
-        case MODBUS_FUNC_READ_DISCRETE:       // 0x02
+        case 0x02:  // 读离散输入
             printf("[Modbus] Read Discrete Inputs\r\n");
             MB_ReadDiscreteInputs(_pBuf, _usLen);
             break;
             
-        case MODBUS_FUNC_READ_HOLDING:        // 0x03
+        case 0x03:  // 读保持寄存器
             printf("[Modbus] Read Holding Registers\r\n");
             MB_ReadRegister(_pBuf, _usLen);
             break;
             
-        case MODBUS_FUNC_READ_INPUT:          // 0x04
+        case 0x04:  // 读输入寄存器
             printf("[Modbus] Read Input Registers\r\n");
             MB_ReadInputRegister(_pBuf, _usLen);
             break;
             
-        case MODBUS_FUNC_WRITE_COIL:         // 0x05
+        case 0x05:  // 写单个线圈
             printf("[Modbus] Write Single Coil\r\n");
-            MB_WriteCoil(_pBuf, _usLen);
+            MB_WriteSingleCoil(_pBuf, _usLen);
             break;
             
-        case MODBUS_FUNC_WRITE_HOLDING:      // 0x06
+        case 0x06:  // 写单个寄存器
             printf("[Modbus] Write Single Register\r\n");
             MB_WriteRegister(_pBuf, _usLen);
             break;
             
-        case MODBUS_FUNC_WRITE_HOLDINGS:     // 0x10
-            printf("[Modbus] Write Multiple Registers\r\n");
-            MB_WriteMultipleRegisters(_pBuf, _usLen);
-            break;
-            
-        case MODBUS_FUNC_WRITE_COILS:         // 0x0F
+        case 0x0F:  // 写多个线圈
             printf("[Modbus] Write Multiple Coils\r\n");
             MB_WriteMultipleCoils(_pBuf, _usLen);
+            break;
+            
+        case 0x10:  // 写多个寄存器
+            printf("[Modbus] Write Multiple Registers\r\n");
+            MB_WriteMultipleRegisters(_pBuf, _usLen);
             break;
             
         default:

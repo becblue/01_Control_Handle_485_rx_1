@@ -102,6 +102,17 @@ int main(void)
   OLED_Init();     // OLED初始化
   RS485_Init();    // RS485初始化
 
+  /* 初始化OLED显示界面 */
+  OLED_Clear();
+  OLED_ShowString(0, 0, "STM32 Demo V2.0");  // 第0行显示标题
+  OLED_ShowString(0, 1, "Status Monitor");    // 第1行显示状态监视器标题
+  OLED_ShowString(0, 2, "LED1:");
+  OLED_ShowString(0, 3, "LED2:");
+  OLED_ShowString(0, 4, "LED3:");
+  OLED_ShowString(64, 2, "KEY1:");
+  OLED_ShowString(64, 3, "KEY2:");
+  OLED_ShowString(16, 6, "Design By Minyer");  // 第6行显示设计者信息
+
   /* 启动第一次接收 */
   HAL_UART_Receive_IT(&huart3, &rxByte, 1);
 
@@ -117,10 +128,14 @@ int main(void)
     /* 处理RS485/Modbus通信 */
     RS485_Handler();
     
-    /* USER CODE END WHILE */
-    /* USER CODE BEGIN 3 */
+    /* 更新OLED显示 */
+    OLED_UpdateStatus();
+    
+    /* 适当延时，避免刷新太快 */
+    HAL_Delay(10);
   }
-  /* USER CODE END 3 */
+  /* USER CODE END WHILE */
+  /* USER CODE BEGIN 3 */
 }
 
 /**

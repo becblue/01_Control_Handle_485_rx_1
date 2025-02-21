@@ -249,28 +249,26 @@ void USART1_IRQHandler(void)
   */
 void USART3_IRQHandler(void)
 {
-    /* USER CODE BEGIN USART3_IRQn 0 */
+    /* 优化1: 先保存状态寄存器，减少重复读取 */
+    uint32_t uart_status = USART3->SR;
     
     /* 判断是否是空闲中断 */
-    if(__HAL_UART_GET_FLAG(&huart3, UART_FLAG_IDLE) != RESET)
+    if(uart_status & UART_FLAG_IDLE)
     {
-        /* 清除空闲中断标志 */
+        /* 优化2: 直接读取DR寄存器清除空闲标志 */
         __HAL_UART_CLEAR_IDLEFLAG(&huart3);
         
-        /* 如果接收到了数据 */
+        /* 优化3: 如果接收到了数据，立即处理 */
         if(rx_count > 0)
         {
-            /* 处理接收到的数据 */
+            /* 直接处理数据，不再使用标志位 */
             RS485_ReciveNew(rx_buffer, rx_count);
-            
-            /* 清零接收计数器,准备下一次接收 */
             rx_count = 0;
         }
     }
-    /* USER CODE END USART3_IRQn 0 */
+    
+    /* 优化4: 其他中断使用HAL库处理 */
     HAL_UART_IRQHandler(&huart3);
-    /* USER CODE BEGIN USART3_IRQn 1 */
-    /* USER CODE END USART3_IRQn 1 */
 }
 
 /* USER CODE BEGIN 1 */

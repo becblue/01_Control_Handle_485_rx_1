@@ -29,6 +29,7 @@ void OLED_SetPosition(uint8_t x, uint8_t y); // 设置显示位置
 void OLED_ShowChar(uint8_t x, uint8_t y, char chr); // 显示一个字符
 void OLED_ShowString(uint8_t x, uint8_t y, const char *str); // 显示字符串
 void OLED_SetContrast(uint8_t contrast); // 设置显示对比度，范围0x00-0xFF
+void OLED_UpdateStatus(void);        // 更新系统状态显示
 
 #endif /* __OLED_H */ 
 

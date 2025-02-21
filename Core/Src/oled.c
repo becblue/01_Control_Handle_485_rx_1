@@ -1,4 +1,7 @@
 #include "oled.h"
+#include "led.h"      // 添加LED相关定义
+#include "key.h"      // 添加按键相关定义
+#include <stdio.h>    // 添加sprintf函数声明
 
 /* OLED初始化命令数组 */
 static const uint8_t OLED_Init_CMD[] = {
@@ -288,4 +291,75 @@ void OLED_SetContrast(uint8_t contrast)
 {
     OLED_WriteCmd(OLED_CMD_SET_CONTRAST);  // 设置对比度命令
     OLED_WriteCmd(contrast);               // 对比度值
+}
+
+/**
+  * @brief  更新系统状态显示
+  * @param  None
+  * @retval None
+  */
+void OLED_UpdateStatus(void)
+{
+    static uint8_t last_led_state[3] = {0xFF, 0xFF, 0xFF};  // LED状态缓存
+    static uint8_t last_key_state[2] = {0xFF, 0xFF};        // 按键状态缓存
+    static uint8_t init_done = 0;  // 初始化标志
+    uint8_t current_state;
+    
+    /* 只在第一次执行时显示标题和版本信息 */
+    if (!init_done)
+    {
+        OLED_SetPosition(0, 0);
+        OLED_ShowString(0, 0, "STM32 Demo V2.0");  // 第0行显示标题和版本
+        
+        OLED_SetPosition(0, 1);
+        OLED_ShowString(0, 1, "Status Monitor");    // 第1行显示状态监视器标题
+        
+        init_done = 1;  // 设置初始化完成标志
+    }
+    
+    /* 只在状态改变时更新显示 */
+    /* LED1状态 */
+    current_state = LED_GetState(LED_R);
+    if(current_state != last_led_state[0])
+    {
+        OLED_SetPosition(32, 2);  // 定位到LED1状态显示位置
+        OLED_ShowString(32, 2, current_state == LED_ON ? "ON " : "OFF");
+        last_led_state[0] = current_state;
+    }
+    
+    /* LED2状态 */
+    current_state = LED_GetState(LED_G);
+    if(current_state != last_led_state[1])
+    {
+        OLED_SetPosition(32, 3);
+        OLED_ShowString(32, 3, current_state == LED_ON ? "ON " : "OFF");
+        last_led_state[1] = current_state;
+    }
+    
+    /* LED3状态 */
+    current_state = LED_GetState(LED_B);
+    if(current_state != last_led_state[2])
+    {
+        OLED_SetPosition(32, 4);
+        OLED_ShowString(32, 4, current_state == LED_ON ? "ON " : "OFF");
+        last_led_state[2] = current_state;
+    }
+    
+    /* KEY1状态 */
+    current_state = KEY_GetState(KEY1);
+    if(current_state != last_key_state[0])
+    {
+        OLED_SetPosition(96, 2);
+        OLED_ShowString(96, 2, current_state == KEY_PRESSED ? "ON " : "OFF");
+        last_key_state[0] = current_state;
+    }
+    
+    /* KEY2状态 */
+    current_state = KEY_GetState(KEY2);
+    if(current_state != last_key_state[1])
+    {
+        OLED_SetPosition(96, 3);
+        OLED_ShowString(96, 3, current_state == KEY_PRESSED ? "ON " : "OFF");
+        last_key_state[1] = current_state;
+    }
 } 
