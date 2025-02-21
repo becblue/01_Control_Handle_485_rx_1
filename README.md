@@ -436,7 +436,7 @@ BÕ¾Í¨¹ýRS485½ÓÊÕAÕ¾·¢ËÍµÄKEY1¡¢KEY2¡¢KEY3°´¼ü×´Ì¬±£´æÖÁ¼Ä´æÆ÷£¬Í¬Ê±½âÎö¼Ä´æÆ÷Êý¾
   - [x] LED¿ØÖÆ²âÊÔ
   - [x] ÏìÓ¦Ê±Ðò²âÊÔ
   - [x] ÖÐ¶ÏÏìÓ¦Ê±¼äÓÅ»¯
-  - [ ] Í¨ÐÅÐ§ÂÊÓÅ»¯
+  - [x] Í¨ÐÅÐ§ÂÊÓÅ»¯
 
 - [ ] ÎÄµµÍêÉÆ
   - [ ] ¸üÐÂÊ¹ÓÃËµÃ÷
@@ -448,5 +448,107 @@ BÕ¾Í¨¹ýRS485½ÓÊÕAÕ¾·¢ËÍµÄKEY1¡¢KEY2¡¢KEY3°´¼ü×´Ì¬±£´æÖÁ¼Ä´æÆ÷£¬Í¬Ê±½âÎö¼Ä´æÆ÷Êý¾
 2. OLEDÏÔÊ¾ÆÁ¹æ¸ñÊé
 3. MAX485Êý¾ÝÊÖ²á
 4. HAL¿âÊ¹ÓÃÊÖ²á
+
+## 8. Ê¹ÓÃËµÃ÷
+
+### 8.1 Ó²¼þÁ¬½Ó
+1. RS485½Ó¿Ú
+   - TX (PB10) -> MAX485µÄDIÒý½Å
+   - RX (PB11) -> MAX485µÄROÒý½Å
+   - EN (PB8)  -> MAX485µÄDE/REÒý½Å
+   - GND -> MAX485µÄGND
+   - VCC -> MAX485µÄVCC (5V)
+
+2. OLEDÏÔÊ¾ÆÁ
+   - SCL (PB6) -> OLEDµÄSCLÒý½Å
+   - SDA (PB7) -> OLEDµÄSDAÒý½Å
+   - GND -> OLEDµÄGND
+   - VCC -> OLEDµÄVCC (3.3V)
+
+3. LEDÖ¸Ê¾µÆ
+   - LED1 (PA1) -> ºìÉ«LEDÑô¼«
+   - LED2 (PA2) -> ÂÌÉ«LEDÑô¼«
+   - LED3 (PA3) -> À¶É«LEDÑô¼«
+   - LEDÒõ¼«½ÓµØ£¨Í¨¹ýÏÞÁ÷µç×è£©
+
+4. °´¼ü
+   - KEY1 (PA4) -> °´¼ü1Ò»¶Ë
+   - KEY2 (PA5) -> °´¼ü2Ò»¶Ë
+   - °´¼üÁíÒ»¶Ë½ÓµØ
+
+### 8.2 Èí¼þÅäÖÃ
+1. Í¨ÐÅ²ÎÊý
+   - ²¨ÌØÂÊ£º115200
+   - Êý¾ÝÎ»£º8
+   - Í£Ö¹Î»£º1
+   - Ð£ÑéÎ»£ºÎÞ
+   - Modbus´Ó»úµØÖ·£º0x01
+
+2. Modbus¹¦ÄÜÖ§³Ö
+   - 0x01£º¶ÁÏßÈ¦
+   - 0x02£º¶ÁÀëÉ¢ÊäÈë
+   - 0x03£º¶Á±£³Ö¼Ä´æÆ÷
+   - 0x04£º¶ÁÊäÈë¼Ä´æÆ÷
+   - 0x05£ºÐ´µ¥¸öÏßÈ¦
+   - 0x06£ºÐ´µ¥¸ö±£³Ö¼Ä´æÆ÷
+   - 0x0F£ºÐ´¶à¸öÏßÈ¦
+   - 0x10£ºÐ´¶à¸ö±£³Ö¼Ä´æÆ÷
+
+### 8.3 ¼Ä´æÆ÷Ó³Éä
+1. ÏßÈ¦£¨¿É¶ÁÐ´£©
+   - 0x0000£ºLED1¿ØÖÆ
+   - 0x0001£ºLED2¿ØÖÆ
+   - 0x0002£ºLED3¿ØÖÆ
+
+2. ÀëÉ¢ÊäÈë£¨Ö»¶Á£©
+   - 0x0000£ºKEY1×´Ì¬
+   - 0x0001£ºKEY2×´Ì¬
+
+3. ±£³Ö¼Ä´æÆ÷£¨¿É¶ÁÐ´£©
+   - 0x0000£ºLED1ÁÁ¶È¿ØÖÆ
+   - 0x0001£ºLED2ÁÁ¶È¿ØÖÆ
+   - 0x0002£ºLED3ÁÁ¶È¿ØÖÆ
+
+4. ÊäÈë¼Ä´æÆ÷£¨Ö»¶Á£©
+   - 0x0000£ºKEY1¼ÆÊýÆ÷
+   - 0x0001£ºKEY2¼ÆÊýÆ÷
+   - 0x0002£ºÏµÍ³ÔËÐÐÊ±¼ä£¨µÍ16Î»£©
+   - 0x0003£ºÏµÍ³ÔËÐÐÊ±¼ä£¨¸ß16Î»£©
+
+### 8.4 ²Ù×÷ËµÃ÷
+1. LED¿ØÖÆ
+   - Í¨¹ýÐ´ÏßÈ¦(0x05)¿ØÖÆLED¿ª¹Ø
+   - Í¨¹ýÐ´±£³Ö¼Ä´æÆ÷(0x06)¿ØÖÆLEDÁÁ¶È
+
+2. °´¼ü×´Ì¬¶ÁÈ¡
+   - Í¨¹ý¶ÁÀëÉ¢ÊäÈë(0x02)»ñÈ¡°´¼ü¼´Ê±×´Ì¬
+   - Í¨¹ý¶ÁÊäÈë¼Ä´æÆ÷(0x04)»ñÈ¡°´¼ü¼ÆÊý
+
+3. OLEDÏÔÊ¾
+   - ×Ô¶¯ÏÔÊ¾ÏµÍ³×´Ì¬
+   - ÏÔÊ¾×î½üÒ»´ÎModbusÍ¨ÐÅÊý¾Ý
+
+### 8.5 µ÷ÊÔ·½·¨
+1. ´®¿Úµ÷ÊÔ
+   - Ê¹ÓÃ´®¿Úµ÷ÊÔÖúÊÖ£¬²¨ÌØÂÊ115200
+   - Ö§³Ö16½øÖÆÊý¾Ý·¢ËÍºÍ½ÓÊÕ
+   - µ÷ÊÔÐÅÏ¢ÊµÊ±´òÓ¡
+   - Ö§³ÖModbus RTUÐ­Òé²âÊÔ
+
+2. LED×´Ì¬Ö¸Ê¾
+   - LED1£º¿ÉÍ¨¹ýModbus¿ØÖÆ¿ª¹Ø
+   - LED2£º¿ÉÍ¨¹ýModbus¿ØÖÆ¿ª¹Ø
+   - LED3£º¿ÉÍ¨¹ýModbus¿ØÖÆ¿ª¹Ø
+
+3. °´¼ü²âÊÔ
+   - KEY1£º×´Ì¬¿ÉÍ¨¹ýModbus¶ÁÈ¡
+   - KEY2£º×´Ì¬¿ÉÍ¨¹ýModbus¶ÁÈ¡
+   - Ö§³Ö°´¼ü×´Ì¬ºÍ¼ÆÊýÆ÷¶ÁÈ¡
+
+4. Í¨ÐÅ²âÊÔ
+   - Ö§³ÖËùÓÐModbus¹¦ÄÜÂë²âÊÔ
+   - Ö§³ÖCRCÐ£Ñé´íÎó²âÊÔ
+   - Ö§³ÖµØÖ·´íÎó²âÊÔ
+   - Ö§³ÖÊý¾Ý´íÎó²âÊÔ
 
 
