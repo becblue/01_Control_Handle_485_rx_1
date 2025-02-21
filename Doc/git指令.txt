@@ -4,7 +4,7 @@ git init
 git add .
 在终端输入git add . 这个点(.)表示把所有文件都加入。就像是在说："把所有文件都摆好位置，准备拍照"。
 
-git commit -m ""
+git commit -m "" 
 在终端输入git commit -m "" 这就是正式拍照的时候！-m 后面写上这张"照片"的说明，比如：“完成代码”、“完成测试”
 
 git log   （查看相册）
@@ -23,3 +23,7 @@ git revert（安全地后悔）
 按下q退出
 然后输入git revert 黏贴刚刚复制的commit id
 输入:wq 按下回车
+
+
+git remote add origin https://github.com/becblue/01_Control_Handle_485_rx_1.git
+git push -u origin master

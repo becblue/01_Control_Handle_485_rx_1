@@ -744,6 +744,75 @@ static void MB_ReadDiscreteInputs(uint8_t *_pFrame, uint16_t _ucLen)
 }
 
 /**
+  * @brief  处理Modbus写多个线圈功能
+  * @param  _pFrame: 帧数据指针
+  * @param  _ucLen: 帧长度
+  * @retval None
+  */
+static void MB_WriteMultipleCoils(uint8_t *_pFrame, uint16_t _ucLen)
+{
+    uint16_t usAddr;      // 起始地址
+    uint16_t usNCoils;    // 线圈数量
+    uint8_t ucByteCount;  // 字节数
+    uint16_t usCRC;
+    uint8_t ucBitOffset;
+    uint8_t ucByteOffset;
+    uint8_t *pData;
+    
+    /* 解析数据 */
+    usAddr = (_pFrame[RS485_DATA_OFFSET] << 8) | _pFrame[RS485_DATA_OFFSET + 1];
+    usNCoils = (_pFrame[RS485_DATA_OFFSET + 2] << 8) | _pFrame[RS485_DATA_OFFSET + 3];
+    ucByteCount = _pFrame[RS485_DATA_OFFSET + 4];
+    pData = &_pFrame[RS485_DATA_OFFSET + 5];
+    
+    /* 检查地址和数量是否有效 */
+    if((usAddr <= COIL_END) && 
+       (usAddr + usNCoils <= COIL_END + 1) &&
+       (ucByteCount == (usNCoils + 7) / 8))
+    {
+        /* 更新线圈状态 */
+        for(uint16_t i = 0; i < usNCoils; i++)
+        {
+            ucByteOffset = (usAddr - COIL_START + i) / 8;
+            ucBitOffset = (usAddr - COIL_START + i) % 8;
+            
+            if(pData[i/8] & (1 << (i%8)))
+            {
+                ucCoilBuf[ucByteOffset] |= (1 << ucBitOffset);
+                /* 如果是LED控制线圈，直接控制LED */
+                if(usAddr + i < 3)  // LED0-LED2
+                {
+                    LED_SetState(usAddr + i, LED_ON);
+                }
+            }
+            else
+            {
+                ucCoilBuf[ucByteOffset] &= ~(1 << ucBitOffset);
+                /* 如果是LED控制线圈，直接控制LED */
+                if(usAddr + i < 3)  // LED0-LED2
+                {
+                    LED_SetState(usAddr + i, LED_OFF);
+                }
+            }
+        }
+        
+        /* 准备响应数据 */
+        _pFrame[RS485_DATA_OFFSET] = (uint8_t)(usAddr >> 8);
+        _pFrame[RS485_DATA_OFFSET + 1] = (uint8_t)(usAddr & 0xFF);
+        _pFrame[RS485_DATA_OFFSET + 2] = (uint8_t)(usNCoils >> 8);
+        _pFrame[RS485_DATA_OFFSET + 3] = (uint8_t)(usNCoils & 0xFF);
+        
+        /* 计算并添加CRC */
+        usCRC = CRC16_Modbus(_pFrame, 6);
+        _pFrame[6] = (uint8_t)(usCRC >> 8);
+        _pFrame[7] = (uint8_t)(usCRC & 0xFF);
+        
+        /* 发送响应 */
+        RS485_SendBuf(_pFrame, 8);
+    }
+}
+
+/**
   * @brief  处理Modbus数据帧
   * @param  _pBuf: 数据缓冲区
   * @param  _usLen: 数据长度
@@ -799,6 +868,11 @@ void RS485_ProcessData(uint8_t *_pBuf, uint16_t _usLen)
         case MODBUS_FUNC_WRITE_HOLDINGS:     // 0x10
             printf("[Modbus] Write Multiple Registers\r\n");
             MB_WriteMultipleRegisters(_pBuf, _usLen);
+            break;
+            
+        case MODBUS_FUNC_WRITE_COILS:         // 0x0F
+            printf("[Modbus] Write Multiple Coils\r\n");
+            MB_WriteMultipleCoils(_pBuf, _usLen);
             break;
             
         default:
